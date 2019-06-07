@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -o errexit  # abort when any commands exits with error
+set -o pipefail # abort when any command in a pipe exits with error
+set -o nounset  # abort when any unset variable is used
+set -o noglob # prevent bash from expanding glob
+set -o errtrace # inherits trap on ERR in function and subshell
+trap 'echo status:$? line:$LINENO line:$BASH_LINENO command:"$BASH_COMMAND" functions:$(printf " %s" ${FUNCNAME[@]:-})' ERR
+
+printf "Content-type: text/plain; charset=iso-8859-1\n\n"
+
+awk 'BEGIN{RS=",";}{if ($1!="") {print $1}}' <<<"${HAPROXY_HOSTS}" \
+  | while read -r haproxy_host; do 
+
+      haproxy_instance="$(awk -F':' '{print $1}' <<<"${haproxy_host}")"
+
+      # # table: default, type: ip, size:10, used:1
+      tables="$(
+        echo "show table" \
+          | socat stdio TCP:${haproxy_host} \
+        )"
+
+      echo "${tables}" \
+        | sed -e '/^$/d' -e 's/^# //g' -e 's/,//g' -e 's/: /:/g' \
+        | awk \
+          -v instance="${haproxy_instance}" \
+          '{
+          split($1,table,":");
+          split($2,type,":");
+          split($3,size,":");
+          split($4,used,":");
+          print( \
+              "haproxy_table_size" \
+              "{" \
+              "instance=\"" instance "\"" \
+              "," \
+              "table=\"" table[2] "\"" \
+              "," \
+              "type=\"" type[2] "\"" \
+              "} " \
+              size[2] \
+            );
+          print( \
+              "haproxy_table_used" \
+              "{" \
+              "table=\"" table[2] "\"" \
+              "," \
+              "type=\"" type[2] "\"" \
+              "} " \
+              used[2] \
+            );
+          }'
+
+      echo "${tables}" \
+        | awk '{gsub(",$","",$3);print $3}' \
+        | while read -r table; do
+            echo "show table ${table}" \
+              | socat stdio TCP:${haproxy_host} \
+              | sed -e '1d' -e '/^$/d' \
+              | awk \
+                -v table="${table}" \
+                -v instance="${haproxy_instance}" \
+                '{ 
+                  for(i=4;i<=NF;i++){
+                    gsub(":","",$1)
+                    gsub("key=","",$2)
+                    split($i,value,"=")
+                    gsub(")","ms",value[1])
+                    gsub("(","_",value[1])
+                    print \
+                      "haproxy_table_entries_" value[1] \
+                      "{" \
+                        "instance=\"" instance "\"" \
+                        "," \
+                        "table=\"" table "\"" \
+                        "," \
+                        "id=\"" $1 "\"" \
+                        "," \
+                        "key=\"" $2 "\"" \
+                      "} " value[2]
+                  }
+                }'
+            #0x55da8e520718: key=30.0.0.1 use=0 exp=35974061 conn_cnt=2 http_req_cnt=2
+          done
+
+  done
+
