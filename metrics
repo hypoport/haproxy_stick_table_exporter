@@ -78,7 +78,9 @@ awk 'BEGIN{RS=",";}{if ($1!="") {print $1}}' <<<"${HAPROXY_HOSTS}" \
                         "key=\"" $2 "\"" \
                       "} " value[2]
                   }
-                }'
+                }' \
+                  | sed 's/""""/""/g'
+
             #0x55da8e520718: key=30.0.0.1 use=0 exp=35974061 conn_cnt=2 http_req_cnt=2
           done
 
