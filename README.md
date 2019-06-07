@@ -13,6 +13,8 @@ examples haproxy config:
 
 The comma separated list of the haproxies need to be defined
 as en environment variable
-    "CGI_ENV_HAPROXY_HOSTS=haproxy:9999"
-    "CGI_ENV_HAPROXY_HOSTS=haproxy:9999,1.2.3.4:1234"
+```
+CGI_ENV_HAPROXY_HOSTS=haproxy:9999
+CGI_ENV_HAPROXY_HOSTS=haproxy:9999,1.2.3.4:1234
+```
 
