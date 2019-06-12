@@ -8,7 +8,7 @@ trap 'echo status:$? line:$LINENO line:$BASH_LINENO command:"$BASH_COMMAND" func
 
 printf "Content-type: text/plain; charset=iso-8859-1\n\n"
 
-awk 'BEGIN{RS=",";}{if ($1!="") {print $1}}' <<<"${HAPROXY_HOSTS}" \
+awk 'BEGIN{RS=",";}{if ($1!="") {print $1}}' <<<"${HAPROXY_HOSTS:-""}" \
   | while read -r haproxy_host; do 
 
       haproxy_instance="$(awk -F':' '{print $1}' <<<"${haproxy_host}")"
@@ -17,7 +17,11 @@ awk 'BEGIN{RS=",";}{if ($1!="") {print $1}}' <<<"${HAPROXY_HOSTS}" \
       tables="$(
         echo "show table" \
           | socat stdio TCP:${haproxy_host} \
+          || true
         )"
+      if [[ -z "${tables}" ]]; then
+          break
+      fi
 
       echo "${tables}" \
         | sed -e '/^$/d' -e 's/^# //g' -e 's/,//g' -e 's/: /:/g' \
@@ -59,27 +63,30 @@ awk 'BEGIN{RS=",";}{if ($1!="") {print $1}}' <<<"${HAPROXY_HOSTS}" \
               | awk \
                 -v table="${table}" \
                 -v instance="${haproxy_instance}" \
-                '{ 
-                  for(i=4;i<=NF;i++){
-                    gsub(":","",$1)
-                    gsub("key=","",$2)
-                    split($i,value,"=")
-                    gsub(")","ms",value[1])
-                    gsub("(","_",value[1])
-                    print \
+                '{  
+                  for(i=4;i<=NF;i++){ 
+                    split($i,value,"="); 
+                    gsub(":","",$1); 
+                    gsub("key=","",$2); 
+                    gsub(")","ms",value[1]); 
+                    gsub("\\(","_",value[1]);
+                    gsub("\"","",$2);
+                    print(\
                       "haproxy_table_entries_" value[1] \
                       "{" \
                         "instance=\"" instance "\"" \
-                        "," \
+                        ","  \
                         "table=\"" table "\"" \
-                        "," \
+                        ","  \
                         "id=\"" $1 "\"" \
                         "," \
                         "key=\"" $2 "\"" \
-                      "} " value[2]
-                  }
-                }' \
-                  | sed 's/""""/""/g'
+                      "} " value[2] \
+                    );
+                  } 
+                }' 
+              # \
+                  # | sed 's/""""/""/g' || true
 
             #0x55da8e520718: key=30.0.0.1 use=0 exp=35974061 conn_cnt=2 http_req_cnt=2
           done
