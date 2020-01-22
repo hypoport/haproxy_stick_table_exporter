@@ -13,6 +13,10 @@ awk 'BEGIN{RS=",";}{if ($1!="") {print $1}}' <<<"${HAPROXY_HOSTS:-""}" \
 
       haproxy_instance="$(awk -F':' '{print $1}' <<<"${haproxy_host}")"
 
+      if [[ ! "${haproxy_instance}" =~ ^[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*$ ]]; then 
+        haproxy_instance="$(dig +short ${haproxy_instance})"
+      fi
+
       # # table: default, type: ip, size:10, used:1
       tables="$(
         echo "show table" \
